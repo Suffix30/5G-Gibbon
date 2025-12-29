@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  gibbon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: 5g-gibbon:latest
+    container_name: gibbon-toolkit
+    hostname: gibbon
+    network_mode: host
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_PTRACE
+    volumes:
+      - ./reports:/app/reports
+      - ./logs:/app/logs
+      - ./data:/app/data
+    environment:
+      - PYTHONUNBUFFERED=1
+      - GIBBON_TARGET_NETWORK=${GIBBON_TARGET_NETWORK:-10.0.0.0/24}
+      - GIBBON_INTERFACE=${GIBBON_INTERFACE:-eth0}
+    stdin_open: true
+    tty: true
+
+  gibbon-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: 5g-gibbon:latest
+    container_name: gibbon-dashboard
+    hostname: gibbon-dashboard
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./reports:/app/reports
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: ["python", "-m", "reporting.dashboard", "--port", "8080", "--demo"]
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:6
+    container_name: gibbon-mongodb
+    hostname: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=gibbon
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:
+

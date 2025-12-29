@@ -1,0 +1,189 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "5g-gibbon"
+version = "1.0.0"
+description = "Advanced 5G/4G LTE Core Network Security Testing Toolkit"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.8"
+authors = [
+    { name = "NET", email = "net@example.com" }
+]
+keywords = [
+    "5g",
+    "4g",
+    "lte",
+    "security",
+    "penetration-testing",
+    "gtp",
+    "pfcp",
+    "ngap",
+    "s1ap",
+    "diameter",
+    "network-security",
+    "vulnerability-assessment",
+    "mme",
+    "hss",
+    "enodeb"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: System :: Networking",
+    "Topic :: System :: Networking :: Monitoring"
+]
+dependencies = [
+    "scapy>=2.5.0",
+    "pymongo>=4.0.0",
+    "rich>=13.0.0",
+    "psutil>=5.9.0",
+    "h2>=4.0.0",
+    "flask>=2.3.0",
+    "graphviz>=0.20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.0.0",
+    "basedpyright>=1.10.0",
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.0.0",
+    "mkdocstrings[python]>=0.24.0",
+]
+all = [
+    "5g-gibbon[dev,docs]",
+]
+
+[project.scripts]
+gibbon = "run:main"
+5g-gibbon = "run:main"
+
+[project.urls]
+Homepage = "https://github.com/net/5g-gibbon"
+Documentation = "https://github.com/net/5g-gibbon/docs"
+Repository = "https://github.com/net/5g-gibbon.git"
+Issues = "https://github.com/net/5g-gibbon/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "core",
+    "attacks",
+    "defense",
+    "discovery",
+    "enumeration",
+    "key_extraction",
+    "protocol",
+    "reporting",
+    "utils",
+    "analysis",
+    "tunneling",
+    "audit",
+    "red_team",
+    "tests",
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/core",
+    "/attacks",
+    "/defense",
+    "/discovery",
+    "/enumeration",
+    "/key_extraction",
+    "/protocol",
+    "/reporting",
+    "/utils",
+    "/analysis",
+    "/tunneling",
+    "/audit",
+    "/red_team",
+    "/tests",
+    "/docs",
+    "/run.py",
+    "/README.md",
+    "/LICENSE",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py38", "py39", "py310", "py311", "py312"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+    | \.hatch
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | venv
+    | _build
+    | buck-out
+    | build
+    | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+skip = [".git", ".hatch", ".mypy_cache", ".tox", ".venv", "venv", "_build", "buck-out", "build", "dist"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+exclude = ["venv", ".venv", "build", "dist"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --cov=. --cov-report=term-missing"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["core", "attacks", "defense", "discovery", "enumeration", "key_extraction", "protocol", "reporting", "utils", "analysis", "tunneling", "audit", "red_team"]
+omit = ["*/tests/*", "*/__pycache__/*", "*/venv/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.basedpyright]
+pythonVersion = "3.8"
+pythonPlatform = "All"
+typeCheckingMode = "basic"
+reportMissingImports = false
+reportMissingModuleSource = false
+reportUnusedImport = "warning"
+reportUnusedVariable = "warning"
+reportDuplicateImport = "warning"
+exclude = ["**/venv/**", "**/.venv/**", "**/build/**", "**/dist/**"]

@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>5G/4G Security Assessment - Forensic Report</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-tertiary: #1a1a25;
+            --text-primary: #e0e0e8;
+            --text-secondary: #a0a0b0;
+            --accent-cyan: #00d4ff;
+            --accent-magenta: #ff00ff;
+            --accent-green: #00ff88;
+            --accent-red: #ff0040;
+            --accent-yellow: #ffaa00;
+            --node-upf: #00d4ff;
+            --node-amf: #ff00ff;
+            --node-smf: #00ff88;
+            --node-nrf: #ffaa00;
+            --node-gnb: #44aaff;
+            --node-ue: #888899;
+            --node-attacker: #ff0040;
+            --link-gtpu: #00d4ff;
+            --link-pfcp: #00ff88;
+            --link-ngap: #ff00ff;
+            --link-sbi: #ffaa00;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+        }
+        
+        #header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: linear-gradient(135deg, var(--bg-secondary), var(--bg-tertiary));
+            border-bottom: 2px solid var(--accent-cyan);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 100;
+        }
+        
+        #header h1 {
+            font-size: 1.3rem;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-magenta));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        #header .meta {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        
+        .report-nav {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .nav-tab {
+            padding: 6px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+        
+        .nav-tab:hover {
+            background: var(--bg-secondary);
+            color: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+        }
+        
+        .nav-tab.active {
+            background: var(--accent-cyan);
+            color: var(--bg-primary);
+            border-color: var(--accent-cyan);
+            font-weight: bold;
+        }
+        
+        #stats-bar {
+            position: fixed;
+            top: 60px;
+            left: 0;
+            right: 0;
+            height: 50px;
+            background: var(--bg-secondary);
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            align-items: center;
+            border-bottom: 1px solid #2a2a3a;
+            z-index: 100;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 1.4rem;
+            font-weight: bold;
+        }
+        
+        .stat-value.compromised { color: var(--accent-red); }
+        .stat-value.normal { color: var(--accent-cyan); }
+        .stat-value.warning { color: var(--accent-yellow); }
+        
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+        }
+        
+        #sidebar {
+            position: fixed;
+            top: 110px;
+            left: 0;
+            width: 320px;
+            bottom: 0;
+            background: var(--bg-secondary);
+            border-right: 1px solid #2a2a3a;
+            overflow-y: auto;
+            z-index: 100;
+            padding: 15px;
+        }
+        
+        #sidebar h3 {
+            color: var(--accent-cyan);
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #2a2a3a;
+        }
+        
+        .finding-item {
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-left: 3px solid var(--accent-red);
+        }
+        
+        .finding-node {
+            font-weight: bold;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        
+        .finding-ip {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+        
+        .finding-vulns {
+            font-size: 0.75rem;
+        }
+        
+        .finding-vulns li {
+            color: var(--accent-red);
+            margin-left: 15px;
+            margin-top: 3px;
+        }
+        
+        #container {
+            position: fixed;
+            top: 110px;
+            left: 320px;
+            right: 0;
+            bottom: 0;
+        }
+        
+        svg {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .node {
+            cursor: pointer;
+        }
+        
+        .node circle {
+            stroke-width: 2px;
+            transition: all 0.3s ease;
+        }
+        
+        .node:hover circle {
+            stroke-width: 4px;
+            filter: drop-shadow(0 0 10px currentColor);
+        }
+        
+        .node.compromised circle {
+            stroke: #ff0040;
+            stroke-width: 4px;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { stroke-opacity: 1; }
+            50% { stroke-opacity: 0.5; }
+        }
+        
+        .node text {
+            fill: var(--text-primary);
+            font-size: 10px;
+            text-anchor: middle;
+            pointer-events: none;
+        }
+        
+        .link {
+            stroke-opacity: 0.6;
+            stroke-width: 2px;
+        }
+        
+        .link.compromised {
+            stroke: #ff0040 !important;
+            stroke-width: 3px;
+        }
+        
+        .link-label {
+            fill: var(--text-primary);
+            font-size: 8px;
+            opacity: 0.7;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+            font-size: 11px;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        #tooltip {
+            position: absolute;
+            background: var(--bg-secondary);
+            border: 1px solid var(--accent-cyan);
+            padding: 12px 15px;
+            border-radius: 6px;
+            font-size: 11px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            max-width: 350px;
+            box-shadow: 0 4px 20px rgba(0, 212, 255, 0.2);
+            z-index: 1000;
+        }
+        
+        #controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--bg-secondary);
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #2a2a3a;
+            z-index: 100;
+        }
+        
+        #controls button {
+            background: var(--bg-primary);
+            border: 1px solid var(--accent-cyan);
+            color: var(--accent-cyan);
+            padding: 5px 10px;
+            margin: 2px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        
+        #controls button:hover {
+            background: var(--accent-cyan);
+            color: var(--bg-primary);
+        }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <h1>5G/4G Security Assessment - Forensic Report</h1>
+            <div class="report-nav">
+                <a href="demo_report.html" class="nav-tab">Document View</a>
+                <a href="demo_topology.html" class="nav-tab active">Topology View</a>
+                <a href="demo_report.json" class="nav-tab" download>JSON Export</a>
+            </div>
+        </div>
+        <div class="meta">
+            <div>Target: 10.0.0.0/24</div>
+            <div>Generated: 2025-12-28 19:40:02 | Analyst: Security Team</div>
+        </div>
+    </div>
+    
+    <div id="stats-bar">
+        <div class="stat-item">
+            <div class="stat-value normal">10</div>
+            <div class="stat-label">NODES DISCOVERED</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value compromised">6</div>
+            <div class="stat-label">COMPROMISED</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value warning">13</div>
+            <div class="stat-label">VULNERABILITIES</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value compromised">7</div>
+            <div class="stat-label">ATTACK PATHS</div>
+        </div>
+    </div>
+    
+    <div id="sidebar">
+        <h3>Compromised Nodes</h3>
+        <div id="findings-list"></div>
+        
+        <h3 style="margin-top: 20px;">Legend</h3>
+        <div class="legend-item"><span class="legend-color" style="background: var(--node-upf);"></span>UPF</div>
+        <div class="legend-item"><span class="legend-color" style="background: var(--node-amf);"></span>AMF</div>
+        <div class="legend-item"><span class="legend-color" style="background: var(--node-smf);"></span>SMF</div>
+        <div class="legend-item"><span class="legend-color" style="background: var(--node-nrf);"></span>NRF</div>
+        <div class="legend-item"><span class="legend-color" style="background: var(--node-gnb);"></span>gNodeB</div>
+        <div class="legend-item"><span class="legend-color" style="background: var(--node-attacker);"></span>Attacker</div>
+        
+        <h3 style="margin-top: 20px;">Interfaces</h3>
+        <div class="legend-item"><span class="legend-color" style="background: var(--link-gtpu);"></span>GTP-U (5G)</div>
+        <div class="legend-item"><span class="legend-color" style="background: var(--link-pfcp);"></span>PFCP (5G)</div>
+        <div class="legend-item"><span class="legend-color" style="background: var(--link-ngap);"></span>NGAP (5G)</div>
+        <div class="legend-item"><span class="legend-color" style="background: var(--link-sbi);"></span>SBI (5G)</div>
+        <div class="legend-item"><span class="legend-color" style="background: #666666;"></span>S1AP/Diameter (4G)</div>
+        
+        <h3 style="margin-top: 20px;">Status</h3>
+        <div class="legend-item"><span class="legend-color" style="background: var(--accent-red); border: 2px dashed #ff0040;"></span>Attack Path</div>
+        <div class="legend-item"><span class="legend-color" style="border: 2px solid var(--accent-red);"></span>Compromised Node</div>
+    </div>
+    
+    <div id="container"></div>
+    
+    <div id="tooltip"></div>
+    
+    <div id="controls">
+        <button onclick="resetZoom()">Reset View</button>
+        <button onclick="toggleLabels()">Toggle Labels</button>
+        <button onclick="window.print()">Print Report</button>
+    </div>
+    
+    <script>
+        const nodes = [{"id": "upf1", "ip": "10.0.0.10", "type": "upf", "label": "UPF (Compromised)", "ports": [2152], "vulnerabilities": ["TEID enumeration", "No rate limiting", "Nested tunnel injection"], "metadata": {"attacks": 3, "last_scan": "2025-12-28 18:00"}, "attack_events": [{"timestamp": "2025-12-28 18:00:01", "phase": "Reconnaissance", "technique": "Port Scan", "command": "nmap -sU -p 2152 10.0.0.10", "payload": "", "response": "2152/udp open gtp-u", "success": true, "evidence": {"ports_found": [2152]}}, {"timestamp": "2025-12-28 18:00:15", "phase": "Enumeration", "technique": "TEID Brute Force", "command": "python run.py enumerate teid --target 10.0.0.10 --start 0 --end 10000", "payload": "GTP-U Echo Request with TEID=0x00000001-0x00002710", "response": "Found 156 active TEIDs: 0x00000100, 0x00000101, ...", "success": true, "evidence": {"active_teids": 156, "response_rate": "15.6%"}}, {"timestamp": "2025-12-28 18:02:30", "phase": "Exploitation", "technique": "Nested Tunnel Injection", "command": "python run.py attack billing --upf 10.0.0.10 --teid 256", "payload": "IP(dst=\"10.0.0.10\")/UDP(dport=2152)/GTPHeader(teid=0x100)/IP(dst=\"10.45.0.1\")/UDP()/\"malicious\"", "response": "Packet accepted, no validation on inner TEID", "success": true, "evidence": {"billing_bypass": true, "bytes_injected": 1024}}]}, {"id": "smf1", "ip": "10.0.0.20", "type": "smf", "label": "SMF (Compromised)", "ports": [8805, 80], "vulnerabilities": ["Session hijack", "Unauthenticated PFCP"], "metadata": {"sessions_hijacked": 3}, "attack_events": []}, {"id": "amf1", "ip": "10.0.0.5", "type": "amf", "label": "AMF (Vulnerable)", "ports": [38412, 80], "vulnerabilities": ["Weak NAS encryption (EEA0)"], "metadata": {"encryption": "EEA0 fallback"}, "attack_events": []}, {"id": "nrf1", "ip": "10.0.0.30", "type": "nrf", "label": "NRF/UDM (Critical)", "ports": [80, 27017], "vulnerabilities": ["MongoDB exposed", "No authentication", "156 keys extracted"], "metadata": {"keys_extracted": 156, "subscribers": 156}, "attack_events": [{"timestamp": "2025-12-28 18:05:00", "phase": "Reconnaissance", "technique": "Service Discovery", "command": "curl http://10.0.0.30:80/nnrf-disc/v1/nf-instances", "payload": "", "response": "{\"nfInstances\": [{\"nfType\": \"AMF\"}, {\"nfType\": \"SMF\"}...]}", "success": true, "evidence": {"nf_count": 5}}, {"timestamp": "2025-12-28 18:05:30", "phase": "Enumeration", "technique": "MongoDB Port Probe", "command": "mongosh --host 10.0.0.30 --port 27017", "payload": "", "response": "{\"databases\": [\"open5gs\", \"subscribers\"]}", "success": true, "evidence": {"databases": ["open5gs", "subscribers"]}}, {"timestamp": "2025-12-28 18:06:00", "phase": "Exfiltration", "technique": "Subscriber Key Extraction", "command": "mongosh open5gs --eval \"db.subscribers.find()\"", "payload": "db.subscribers.find({})", "response": "001010123456789 | K=465B5CE8... | OPc=E8ED289D...", "success": true, "evidence": {"keys_extracted": 156}}]}, {"id": "mme1", "ip": "10.0.0.40", "type": "unknown", "label": "MME (4G)", "ports": [36412, 2123], "vulnerabilities": ["Rogue eNodeB acceptance", "No certificate validation"], "metadata": {"protocol": "S1AP", "generation": "4G LTE"}, "attack_events": [{"timestamp": "2025-12-28 18:10:00", "phase": "Reconnaissance", "technique": "S1AP Port Scan", "command": "nmap -sS -p 36412 10.0.0.40", "payload": "", "response": "36412/tcp open s1ap", "success": true, "evidence": {}}, {"timestamp": "2025-12-28 18:10:30", "phase": "Exploitation", "technique": "Rogue eNodeB Registration", "command": "python run.py lte rogue-enb --mme 10.0.0.40", "payload": "S1SetupRequest(global_enb_id=0x12345, tac=0x0001)", "response": "S1SetupResponse(mme_name=\"MME01\")", "success": true, "evidence": {"mme_accepted": true, "cell_registered": true}}, {"timestamp": "2025-12-28 18:11:00", "phase": "Lateral Movement", "technique": "HSS Diameter Query via MME", "command": "python run.py lte hss-probe --hss 10.0.0.50", "payload": "Authentication-Information-Request(imsi=\"001010123456789\")", "response": "Authentication-Information-Answer with RAND, AUTN, XRES, KASME", "success": true, "evidence": {"auth_vectors_obtained": 5}}]}, {"id": "hss1", "ip": "10.0.0.50", "type": "unknown", "label": "HSS (4G)", "ports": [3868], "vulnerabilities": ["IMSI enumeration via timing", "Auth vector extraction"], "metadata": {"protocol": "Diameter", "imsis_leaked": 23}, "attack_events": [{"timestamp": "2025-12-28 18:12:00", "phase": "Enumeration", "technique": "IMSI Timing Attack", "command": "python run.py lte imsi-enum --hss 10.0.0.50 --range 001010000000000-001010999999999", "payload": "ULR probes with varying IMSIs", "response": "Timing variance detected: valid IMSI responds 2.3ms faster", "success": true, "evidence": {"valid_imsis_found": 23, "timing_delta_ms": 2.3}}]}, {"id": "gnb1", "ip": "10.0.0.100", "type": "gnodeb", "label": "gNodeB", "ports": [38412, 2152], "vulnerabilities": [], "metadata": {"cell_id": "0x1234", "plmn": "001-01"}, "attack_events": []}, {"id": "enb1", "ip": "10.0.0.101", "type": "unknown", "label": "eNodeB (4G)", "ports": [36412, 2152], "vulnerabilities": [], "metadata": {"cell_id": "0x5678", "generation": "4G LTE"}, "attack_events": []}, {"id": "ue1", "ip": "10.45.0.1", "type": "ue", "label": "Victim UE", "ports": [], "vulnerabilities": [], "metadata": {"imsi": "001010123456789", "status": "Connected"}, "attack_events": []}, {"id": "attacker", "ip": "192.168.1.100", "type": "attacker", "label": "Attacker", "ports": [], "vulnerabilities": [], "metadata": {"attacks_launched": 12, "success_rate": "75%"}, "attack_events": []}];
+        const links = [{"source": "ue1", "target": "gnb1", "type": "nas", "port": 0, "label": "NAS", "compromised": false, "attack_events": []}, {"source": "gnb1", "target": "amf1", "type": "ngap", "port": 38412, "label": "NGAP", "compromised": false, "attack_events": []}, {"source": "gnb1", "target": "upf1", "type": "gtp-u", "port": 2152, "label": "GTP-U", "compromised": true, "attack_events": []}, {"source": "amf1", "target": "smf1", "type": "sbi", "port": 80, "label": "SBI", "compromised": false, "attack_events": []}, {"source": "smf1", "target": "upf1", "type": "pfcp", "port": 8805, "label": "PFCP", "compromised": true, "attack_events": []}, {"source": "amf1", "target": "nrf1", "type": "sbi", "port": 80, "label": "SBI", "compromised": false, "attack_events": []}, {"source": "smf1", "target": "nrf1", "type": "sbi", "port": 80, "label": "SBI", "compromised": false, "attack_events": []}, {"source": "enb1", "target": "mme1", "type": "unknown", "port": 36412, "label": "S1AP", "compromised": true, "attack_events": []}, {"source": "mme1", "target": "hss1", "type": "unknown", "port": 3868, "label": "Diameter", "compromised": true, "attack_events": []}, {"source": "attacker", "target": "upf1", "type": "gtp-u", "port": 0, "label": "TEID Attack", "compromised": true, "attack_events": []}, {"source": "attacker", "target": "nrf1", "type": "unknown", "port": 0, "label": "MongoDB Access", "compromised": true, "attack_events": []}, {"source": "attacker", "target": "mme1", "type": "unknown", "port": 0, "label": "Rogue eNB", "compromised": true, "attack_events": []}];
+        const findings = [{"id": "upf1", "node": "UPF (Compromised)", "ip": "10.0.0.10", "vulns": ["TEID enumeration", "No rate limiting", "Nested tunnel injection"]}, {"id": "smf1", "node": "SMF (Compromised)", "ip": "10.0.0.20", "vulns": ["Session hijack", "Unauthenticated PFCP"]}, {"id": "amf1", "node": "AMF (Vulnerable)", "ip": "10.0.0.5", "vulns": ["Weak NAS encryption (EEA0)"]}, {"id": "nrf1", "node": "NRF/UDM (Critical)", "ip": "10.0.0.30", "vulns": ["MongoDB exposed", "No authentication", "156 keys extracted"]}, {"id": "mme1", "node": "MME (4G)", "ip": "10.0.0.40", "vulns": ["Rogue eNodeB acceptance", "No certificate validation"]}, {"id": "hss1", "node": "HSS (4G)", "ip": "10.0.0.50", "vulns": ["IMSI enumeration via timing", "Auth vector extraction"]}];
+        
+        const findingsList = document.getElementById('findings-list');
+        findings.forEach(f => {
+            const div = document.createElement('div');
+            div.className = 'finding-item';
+            div.dataset.nodeId = f.id;
+            div.innerHTML = `
+                <div class="finding-node">${f.node}</div>
+                <div class="finding-ip">${f.ip}</div>
+                <ul class="finding-vulns">
+                    ${f.vulns.map(v => '<li>' + v + '</li>').join('')}
+                </ul>
+            `;
+            div.addEventListener('click', () => focusNode(f.id));
+            findingsList.appendChild(div);
+        });
+        
+        if (findings.length === 0) {
+            findingsList.innerHTML = '<div style="color: #00ff88; padding: 10px;">No compromised nodes detected</div>';
+        }
+        
+        let selectedNode = null;
+        let detailPanel = null;
+        
+        const width = document.getElementById('container').clientWidth;
+        const height = document.getElementById('container').clientHeight;
+        
+        const nodeColors = {
+            'upf': '#00d4ff',
+            'amf': '#ff00ff',
+            'smf': '#00ff88',
+            'nrf': '#ffaa00',
+            'gnodeb': '#44aaff',
+            'ue': '#888899',
+            'attacker': '#ff0040',
+            'unknown': '#666666'
+        };
+        
+        const linkColors = {
+            'gtp-u': '#00d4ff',
+            'pfcp': '#00ff88',
+            'ngap': '#ff00ff',
+            'sbi': '#ffaa00',
+            'nas': '#44aaff',
+            'unknown': '#666666'
+        };
+        
+        const svg = d3.select('#container')
+            .append('svg')
+            .attr('width', width)
+            .attr('height', height);
+        
+        const defs = svg.append('defs');
+        
+        defs.append('marker')
+            .attr('id', 'arrow-attack')
+            .attr('viewBox', '0 -5 10 10')
+            .attr('refX', 35)
+            .attr('refY', 0)
+            .attr('markerWidth', 6)
+            .attr('markerHeight', 6)
+            .attr('orient', 'auto')
+            .append('path')
+            .attr('d', 'M0,-5L10,0L0,5')
+            .attr('fill', '#ff0040');
+        
+        defs.append('marker')
+            .attr('id', 'arrow-normal')
+            .attr('viewBox', '0 -5 10 10')
+            .attr('refX', 35)
+            .attr('refY', 0)
+            .attr('markerWidth', 5)
+            .attr('markerHeight', 5)
+            .attr('orient', 'auto')
+            .append('path')
+            .attr('d', 'M0,-4L8,0L0,4')
+            .attr('fill', '#666');
+        
+        const g = svg.append('g');
+        
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on('zoom', (event) => g.attr('transform', event.transform));
+        
+        svg.call(zoom);
+        
+        const simulation = d3.forceSimulation(nodes)
+            .force('link', d3.forceLink(links).id(d => d.id).distance(150))
+            .force('charge', d3.forceManyBody().strength(-500))
+            .force('center', d3.forceCenter(width / 2, height / 2))
+            .force('collision', d3.forceCollide().radius(60));
+        
+        const link = g.append('g')
+            .selectAll('line')
+            .data(links)
+            .enter()
+            .append('line')
+            .attr('class', d => 'link' + (d.compromised ? ' compromised' : ''))
+            .attr('marker-end', d => d.compromised ? 'url(#arrow-attack)' : 'url(#arrow-normal)')
+            .style('stroke', d => linkColors[d.type] || linkColors.unknown);
+        
+        const linkLabels = g.append('g')
+            .selectAll('text')
+            .data(links)
+            .enter()
+            .append('text')
+            .attr('class', 'link-label')
+            .text(d => d.label);
+        
+        const node = g.append('g')
+            .selectAll('g')
+            .data(nodes)
+            .enter()
+            .append('g')
+            .attr('class', d => 'node' + (d.vulnerabilities.includes('compromised') ? ' compromised' : ''))
+            .call(d3.drag()
+                .on('start', dragstarted)
+                .on('drag', dragged)
+                .on('end', dragended));
+        
+        node.append('circle')
+            .attr('r', 25)
+            .style('fill', d => nodeColors[d.type] || nodeColors.unknown)
+            .style('stroke', d => d.vulnerabilities.length ? '#ff0040' : nodeColors[d.type])
+            .style('cursor', 'pointer')
+            .on('mouseover', showTooltip)
+            .on('mouseout', hideTooltip)
+            .on('click', (event, d) => {
+                event.stopPropagation();
+                selectNode(d);
+            });
+        
+        node.append('text')
+            .attr('dy', 4)
+            .text(d => d.type.toUpperCase());
+        
+        node.append('text')
+            .attr('dy', 45)
+            .style('font-size', '9px')
+            .text(d => d.ip);
+        
+        simulation.on('tick', () => {
+            link
+                .attr('x1', d => d.source.x)
+                .attr('y1', d => d.source.y)
+                .attr('x2', d => d.target.x)
+                .attr('y2', d => d.target.y);
+            
+            linkLabels
+                .attr('x', d => (d.source.x + d.target.x) / 2)
+                .attr('y', d => (d.source.y + d.target.y) / 2);
+            
+            node.attr('transform', d => `translate(${d.x},${d.y})`);
+        });
+        
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+        
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+        
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }
+        
+        function showTooltip(event, d) {
+            const tooltip = document.getElementById('tooltip');
+            const status = d.vulnerabilities.length > 0 ? 
+                '<span style="color: #ff0040;">!</span>' : 
+                '<span style="color: #00ff88;">OK</span>';
+            
+            tooltip.innerHTML = `
+                <strong style="color: #00d4ff;">${d.label || d.type.toUpperCase()}</strong><br>
+                <span style="color: #a0a0b0;">${d.ip}</span> ${status}<br>
+                <span style="font-size: 10px; color: #666;">Click for details</span>
+            `;
+            tooltip.style.left = (event.pageX + 15) + 'px';
+            tooltip.style.top = (event.pageY - 15) + 'px';
+            tooltip.style.opacity = 1;
+        }
+        
+        function hideTooltip() {
+            document.getElementById('tooltip').style.opacity = 0;
+        }
+        
+        function resetZoom() {
+            svg.transition().duration(750).call(
+                zoom.transform,
+                d3.zoomIdentity.translate(0, 0).scale(1)
+            );
+        }
+        
+        let labelsVisible = true;
+        function toggleLabels() {
+            labelsVisible = !labelsVisible;
+            node.selectAll('text').style('opacity', labelsVisible ? 1 : 0);
+            linkLabels.style('opacity', labelsVisible ? 0.7 : 0);
+        }
+        
+        function focusNode(nodeId) {
+            const targetNode = nodes.find(n => n.id === nodeId);
+            if (!targetNode) return;
+            
+            const scale = 1.5;
+            const x = width / 2 - targetNode.x * scale;
+            const y = height / 2 - targetNode.y * scale;
+            
+            svg.transition().duration(750).call(
+                zoom.transform,
+                d3.zoomIdentity.translate(x, y).scale(scale)
+            );
+            
+            node.selectAll('circle')
+                .style('stroke-width', d => d.id === nodeId ? 4 : 2)
+                .style('filter', d => d.id === nodeId ? 'drop-shadow(0 0 10px #00d4ff)' : 'none');
+            
+            document.querySelectorAll('.finding-item').forEach(el => {
+                el.style.background = el.dataset.nodeId === nodeId ? 'rgba(0, 212, 255, 0.15)' : 'rgba(255, 255, 255, 0.03)';
+                el.style.borderLeftColor = el.dataset.nodeId === nodeId ? '#00d4ff' : '#ff0040';
+            });
+            
+            selectNode(targetNode);
+        }
+        
+        function selectNode(d) {
+            if (selectedNode === d.id) {
+                closeDetailPanel();
+                return;
+            }
+            selectedNode = d.id;
+            
+            node.selectAll('circle')
+                .style('stroke-width', n => n.id === d.id ? 4 : 2)
+                .style('filter', n => n.id === d.id ? 'drop-shadow(0 0 10px #00d4ff)' : 'none');
+            
+            showDetailPanel(d);
+        }
+        
+        function showDetailPanel(d) {
+            closeDetailPanel();
+            
+            detailPanel = document.createElement('div');
+            detailPanel.id = 'detail-panel';
+            detailPanel.style.cssText = `
+                position: fixed; bottom: 100px; right: 20px; width: 380px;
+                max-height: calc(100vh - 200px); overflow-y: auto;
+                background: rgba(10, 10, 15, 0.98); border: 1px solid #1a1a2a;
+                border-radius: 8px; padding: 20px; z-index: 1000;
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+                font-family: 'JetBrains Mono', monospace; color: #e0e0e0;
+                animation: slideIn 0.3s ease-out;
+            `;
+            
+            const connectedLinks = links.filter(l => l.source.id === d.id || l.target.id === d.id);
+            const connectedNodes = connectedLinks.map(l => {
+                const other = l.source.id === d.id ? l.target : l.source;
+                return { node: other, link: l };
+            });
+            
+            const attackPaths = connectedLinks.filter(l => l.compromised);
+            
+            const severity = d.vulnerabilities.length >= 3 ? 'CRITICAL' : 
+                             d.vulnerabilities.length >= 2 ? 'HIGH' : 
+                             d.vulnerabilities.length === 1 ? 'MEDIUM' : 'LOW';
+            const severityColor = severity === 'CRITICAL' ? '#ff0040' : 
+                                  severity === 'HIGH' ? '#ff6600' : 
+                                  severity === 'MEDIUM' ? '#ffaa00' : '#00ff88';
+            
+            const status = d.vulnerabilities.length > 0 ? 
+                `<span style="color: ${severityColor}; font-weight: bold;">${severity}</span>` : 
+                '<span style="color: #00ff88; font-weight: bold;">SECURE</span>';
+            
+            const svcMap = {2152: 'GTP-U', 8805: 'PFCP', 38412: 'NGAP', 36412: 'S1AP', 3868: 'Diameter', 27017: 'MongoDB', 80: 'HTTP', 443: 'HTTPS', 2123: 'GTPv2-C'};
+            
+            const ports = d.ports && d.ports.length > 0 ?
+                d.ports.map(p => `<span style="background: #1a1a2a; padding: 2px 6px; border-radius: 3px; margin: 2px; display: inline-block;">${p}${svcMap[p] ? ' (' + svcMap[p] + ')' : ''}</span>`).join(' ') : 'None detected';
+            
+            let vulnsSection = '';
+            if (d.vulnerabilities.length > 0) {
+                vulnsSection = `
+                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #2a2a3a;">
+                        <div style="color: #ff0040; font-weight: bold; margin-bottom: 8px;">VULNERABILITIES (${d.vulnerabilities.length})</div>
+                        <ul style="margin: 0; padding: 0; list-style: none;">
+                            ${d.vulnerabilities.map(v => `<li style="margin: 6px 0; padding: 8px 12px; background: rgba(255, 0, 64, 0.1); border-left: 3px solid #ff0040; border-radius: 0 4px 4px 0;">${v}</li>`).join('')}
+                        </ul>
+                    </div>`;
+            }
+            
+            let connectionsSection = '';
+            if (connectedNodes.length > 0) {
+                connectionsSection = `
+                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #2a2a3a;">
+                        <div style="color: #00d4ff; font-weight: bold; margin-bottom: 8px;">CONNECTIONS (${connectedNodes.length})</div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                            ${connectedNodes.map(c => {
+                                const isAttack = c.link.compromised;
+                                const style = isAttack ? 'background: rgba(255, 0, 64, 0.2); border: 1px solid #ff0040;' : 'background: #1a1a2a; border: 1px solid #333;';
+                                return `<span style="${style} padding: 4px 8px; border-radius: 4px; font-size: 11px;">${c.node.label || c.node.type}${isAttack ? ' ⚠' : ''}</span>`;
+                            }).join('')}
+                        </div>
+                    </div>`;
+            }
+            
+            let attackPathsSection = '';
+            if (attackPaths.length > 0) {
+                attackPathsSection = `
+                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #2a2a3a;">
+                        <div style="color: #ff6600; font-weight: bold; margin-bottom: 8px;">ATTACK PATHS (${attackPaths.length})</div>
+                        <div style="font-size: 11px; color: #a0a0b0;">
+                            ${attackPaths.map(l => `<div style="margin: 4px 0; padding: 4px 8px; background: rgba(255, 102, 0, 0.1); border-radius: 4px;">${l.label || 'Unknown'} (${l.source.label || l.source.type} → ${l.target.label || l.target.type})</div>`).join('')}
+                        </div>
+                    </div>`;
+            }
+            
+            let metadataSection = '';
+            if (d.metadata && Object.keys(d.metadata).length > 0) {
+                metadataSection = `
+                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #2a2a3a;">
+                        <div style="color: #a0a0b0; font-weight: bold; margin-bottom: 8px;">METADATA</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 11px;">
+                            ${Object.entries(d.metadata).map(([k, v]) => `<span style="color: #666;">${k}:</span><span>${v}</span>`).join('')}
+                        </div>
+                    </div>`;
+            }
+            
+            let recommendationsSection = '';
+            if (d.vulnerabilities.length > 0) {
+                const recs = [];
+                if (d.vulnerabilities.some(v => v.toLowerCase().includes('rate limit'))) recs.push('Implement rate limiting on this interface');
+                if (d.vulnerabilities.some(v => v.toLowerCase().includes('authentication') || v.toLowerCase().includes('unauthenticated'))) recs.push('Enable authentication mechanisms');
+                if (d.vulnerabilities.some(v => v.toLowerCase().includes('mongodb') || v.toLowerCase().includes('exposed'))) recs.push('Restrict network access, enable auth');
+                if (d.vulnerabilities.some(v => v.toLowerCase().includes('enumeration'))) recs.push('Randomize identifiers, add delays');
+                if (d.vulnerabilities.some(v => v.toLowerCase().includes('injection') || v.toLowerCase().includes('hijack'))) recs.push('Validate all input, use encryption');
+                if (d.vulnerabilities.some(v => v.toLowerCase().includes('encryption') || v.toLowerCase().includes('eea0'))) recs.push('Enforce strong encryption (EEA1/EEA2)');
+                if (d.vulnerabilities.some(v => v.toLowerCase().includes('rogue') || v.toLowerCase().includes('certificate'))) recs.push('Implement certificate validation');
+                if (recs.length === 0) recs.push('Review security configuration');
+                
+                recommendationsSection = `
+                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #2a2a3a;">
+                        <div style="color: #00ff88; font-weight: bold; margin-bottom: 8px;">RECOMMENDATIONS</div>
+                        <ul style="margin: 0; padding: 0 0 0 16px; font-size: 11px; color: #a0a0b0;">
+                            ${recs.map(r => `<li style="margin: 4px 0;">${r}</li>`).join('')}
+                        </ul>
+                    </div>`;
+            }
+            
+            const allEvents = [
+                ...(d.attack_events || []),
+                ...connectedLinks.filter(l => l.attack_events).flatMap(l => l.attack_events || [])
+            ].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            
+            let attackLogSection = '';
+            if (allEvents.length > 0) {
+                const phaseColors = {
+                    'Reconnaissance': '#00d4ff',
+                    'Enumeration': '#ffaa00',
+                    'Exploitation': '#ff0040',
+                    'Persistence': '#ff6600',
+                    'Exfiltration': '#ff00ff',
+                    'Lateral Movement': '#ff6600'
+                };
+                
+                attackLogSection = `
+                    <div style="margin-top: 16px; padding-top: 16px; border-top: 2px solid #ff0040;">
+                        <div style="color: #ff0040; font-weight: bold; margin-bottom: 12px; font-size: 13px;">
+                            ATTACK LOG (${allEvents.length} events)
+                        </div>
+                        <div style="max-height: 300px; overflow-y: auto;">
+                            ${allEvents.map((e, i) => `
+                                <div style="margin-bottom: 12px; padding: 10px; background: rgba(255, 0, 64, 0.05); border-left: 3px solid ${phaseColors[e.phase] || '#666'}; border-radius: 0 4px 4px 0;">
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                                        <span style="color: ${phaseColors[e.phase] || '#666'}; font-weight: bold; font-size: 11px;">${e.phase.toUpperCase()}</span>
+                                        <span style="color: #666; font-size: 10px;">${e.timestamp}</span>
+                                    </div>
+                                    <div style="color: #e0e0e0; font-size: 12px; margin-bottom: 6px;">${e.technique}</div>
+                                    ${e.command ? `<div style="margin-top: 8px;"><span style="color: #666; font-size: 10px;">COMMAND:</span><pre style="margin: 4px 0; padding: 6px; background: #0a0a0f; border-radius: 4px; font-size: 10px; overflow-x: auto; color: #00ff88;">${e.command}</pre></div>` : ''}
+                                    ${e.payload ? `<div style="margin-top: 6px;"><span style="color: #666; font-size: 10px;">PAYLOAD:</span><pre style="margin: 4px 0; padding: 6px; background: #0a0a0f; border-radius: 4px; font-size: 10px; overflow-x: auto; color: #ffaa00; max-height: 60px;">${e.payload.length > 200 ? e.payload.substring(0, 200) + '...' : e.payload}</pre></div>` : ''}
+                                    ${e.response ? `<div style="margin-top: 6px;"><span style="color: #666; font-size: 10px;">RESPONSE:</span><pre style="margin: 4px 0; padding: 6px; background: #0a0a0f; border-radius: 4px; font-size: 10px; overflow-x: auto; color: #a0a0b0; max-height: 60px;">${e.response.length > 200 ? e.response.substring(0, 200) + '...' : e.response}</pre></div>` : ''}
+                                    <div style="margin-top: 6px; display: flex; align-items: center; gap: 8px;">
+                                        <span style="color: ${e.success ? '#00ff88' : '#ff0040'}; font-size: 10px; font-weight: bold;">${e.success ? 'SUCCESS' : 'FAILED'}</span>
+                                        ${Object.keys(e.evidence || {}).length > 0 ? `<span style="color: #666; font-size: 10px;">Evidence: ${Object.keys(e.evidence).join(', ')}</span>` : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>`;
+            }
+            
+            detailPanel.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #2a2a3a;">
+                    <div>
+                        <div style="color: #00d4ff; font-size: 16px; font-weight: bold;">${d.label || d.type.toUpperCase()}</div>
+                        <div style="font-size: 11px; color: #666; margin-top: 2px;">${d.type.toUpperCase()} Network Function</div>
+                    </div>
+                    <button onclick="closeDetailPanel()" style="background: none; border: 1px solid #333; color: #888; padding: 4px 10px; cursor: pointer; border-radius: 4px; font-size: 16px;">×</button>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 100px 1fr; gap: 8px; font-size: 12px;">
+                    <span style="color: #666;">IP Address:</span><span style="color: #00d4ff; font-family: monospace;">${d.ip}</span>
+                    <span style="color: #666;">Severity:</span><span>${status}</span>
+                    <span style="color: #666;">Connections:</span><span>${connectedNodes.length} nodes</span>
+                    <span style="color: #666;">Attack Paths:</span><span style="color: ${attackPaths.length > 0 ? '#ff6600' : '#00ff88'};">${attackPaths.length} detected</span>
+                </div>
+                
+                <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #2a2a3a;">
+                    <div style="color: #a0a0b0; font-weight: bold; margin-bottom: 8px;">OPEN PORTS</div>
+                    <div>${ports}</div>
+                </div>
+                
+                ${vulnsSection}
+                ${attackPathsSection}
+                ${connectionsSection}
+                ${metadataSection}
+                ${recommendationsSection}
+                ${attackLogSection}
+            `;
+            
+            document.body.appendChild(detailPanel);
+        }
+        
+        function closeDetailPanel() {
+            if (detailPanel) {
+                detailPanel.remove();
+                detailPanel = null;
+            }
+            selectedNode = null;
+            node.selectAll('circle')
+                .style('stroke-width', 2)
+                .style('filter', 'none');
+            document.querySelectorAll('.finding-item').forEach(el => {
+                el.style.background = 'rgba(255, 255, 255, 0.03)';
+            });
+        }
+        
+        svg.on('click', () => closeDetailPanel());
+        
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateY(20px); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+            }
+            .finding-item { cursor: pointer; transition: all 0.2s ease; }
+            .finding-item:hover { background: rgba(0, 212, 255, 0.1) !important; }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>

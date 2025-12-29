@@ -1,0 +1,62 @@
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Generated files
+*.pcap
+*.log
+maximum_extraction_results.json
+*_results.json
+
+# Reports (generated)
+reports/
+*.html
+!docs/*.html
+!examples/*.html
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*.code-workspace
+
+# Results database
+results/
+*.db
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Type checking
+.mypy_cache/
+
+# Logs and data
+logs/
+data/
+
+# Activation scripts (generated)
+activate.bat
+activate.ps1
+activate.sh

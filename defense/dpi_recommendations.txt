@@ -1,0 +1,32 @@
+
+    To enhance DPI in Open5GS, add these to your UPF configuration:
+
+    1. Edit /etc/open5gs/upf.yaml:
+    
+       upf:
+         pfcp:
+           - addr: 127.0.0.4
+         gtpu:
+           - addr: 127.0.0.7
+         # Add DPI settings:
+         session:
+           - subnet: 10.45.0.1/16
+             dnn: internet
+             # Enable packet inspection
+             dev: ogstun
+             
+    2. For production, consider:
+       - Deploy a dedicated GTP firewall (e.g., Suricata with GTP rules)
+       - Use IPsec for N3 interface (UPF ↔ gNodeB)
+       - Implement network segmentation
+       - Enable PFCP heartbeat monitoring
+       
+    3. Add Suricata GTP rules (/etc/suricata/rules/gtp.rules):
+    
+       alert udp any any -> any 2152 (msg:"Nested GTP-U Tunnel Detected"; 
+           content:"|30 ff|"; offset:8; depth:20; sid:5000001; rev:1;)
+       
+       alert udp any any -> any 2152 (msg:"GTP-U Flood Detected";
+           threshold:type both, track by_src, count 1000, seconds 1;
+           sid:5000002; rev:1;)
+    

